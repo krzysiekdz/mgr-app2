@@ -21,7 +21,7 @@ function loadTraces(onEndFn) {
 			});
 		}
 	}
-	console.log(traces);
+	// console.log(traces);
 	// eventEmitter.on('onEnd', onEndFn);
 	// readTraceFiles(traces);
 }
