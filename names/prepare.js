@@ -13,18 +13,21 @@ names.prepare = function(toRun) {
 				all_b = all_b.concat(names.benchmarks[cat.name].all);
 			}
 			names.benchmarksToRun = all_b;
-			console.log('benchmarks count:', all_b.length);
-		} else if(key === 'all_frameworks' && toRun[key]) { //all frameworks
+			console.log('all benchmarks count:', all_b.length);
+		} 
+		else if(key === 'all_frameworks' && toRun[key]) { //all frameworks
 			names.frameworksToRun = names.frameworks;
-			console.log('frameworks count:', names.frameworks.length);
-		} else if (key === 'frameworks') { //frameworks array
+			console.log('all frameworks count:', names.frameworks.length);
+		} 
+		else if (key === 'frameworks') { //frameworks array
 			if(toRun.frameworks.length > 0) {
 				var frams = toRun.frameworks;
 				for (var i = 0; i < frams.length; i++) {
 					names.frameworksToRun.push(names.frameworks[frams[i]]);
 				}
 			}
-		} else {
+		} 
+		else {
 			if(toRun[key].length > 0) {//benchmarks array
 				var benchs = toRun[key];
 				for(var i = 0; i < benchs.length; i++ ) {

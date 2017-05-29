@@ -21,16 +21,17 @@ function loadTraces(onEndFn) {
 			});
 		}
 	}
-	// console.log(traces);
-	// eventEmitter.on('onEnd', onEndFn);
-	// readTraceFiles(traces);
+	eventEmitter.on('onEnd', onEndFn);
+	readTraceFiles(traces);
 }
 
-//dodac funkcje, ktora na koncu przefiltruje traces i usunie te, ktore sa puste, tzn nie wczytano dla nich nic z pliku - dzieki temu potem nie trzeba nic zmieniac w dalszje strukturze programu
 
 var traceFilesToRead = 0;
+var readCount = 0;
+
 function readTraceFiles(traces) {
 	traceFilesToRead = traces.length;
+	console.log('all possible traces to read:',traceFilesToRead);
 
 	for(var i = 0; i < traces.length; i++) {
 		var trace = traces[i];
@@ -39,16 +40,29 @@ function readTraceFiles(traces) {
 		(function(fn, trace) {
 			fs.readFile(fn, (err, data)=> {
 				if(err) {
-					return console.error(err);
+					traceFilesToRead--;
+					return;
 				}
 				trace.logs = JSON.parse(data.toString());
 				traceFilesToRead--;
-				// console.log(traceFilesToRead);
+				readCount++;
 				if(traceFilesToRead === 0)
-					eventEmitter.emit('onEnd', traces);
+					beforeEnd(traces);
 			})
 		})(fileName, trace)
-
 	}
+}
 
+function beforeEnd(traces) {
+	console.log('traces has read:', readCount);
+	clearEmptyTraces(traces);
+	eventEmitter.emit('onEnd', traces);
+}
+
+function clearEmptyTraces(traces) {
+	for(var i = traces.length-1 ; i >= 0 ; i--) {
+		if(traces[i].logs === undefined) {
+			traces.splice(i, 1);
+		}
+	}
 }

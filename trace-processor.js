@@ -7,6 +7,8 @@ var resultworker = require('./resultWorker');
 function traceProcessor() {
 
 	loader.loadTraces(function(traces) { //callback function, loaded traces returned
+		console.log('trace proc');
+		console.log(traces.length);
 		// parser.parse(traces);//>> traces.frames
 
 		// resultworker.results(traces);// >> traces.results
