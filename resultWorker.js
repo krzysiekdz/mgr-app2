@@ -1,6 +1,6 @@
 var config = require('./cfg');
 var jstat = require('jstat').jStat;
-var names = require('./names');
+var names = require('./names/names');
 
 exports.results = results;
 function results(traces) {

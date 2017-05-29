@@ -1,5 +1,5 @@
 
-var names = require('./names');
+var names = require('./names/names');
 var fs = require('fs');
 
 var events = require('events');
@@ -21,10 +21,12 @@ function loadTraces(onEndFn) {
 			});
 		}
 	}
-	// console.log(traces);
-	eventEmitter.on('onEnd', onEndFn);
-	readTraceFiles(traces);
+	console.log(traces);
+	// eventEmitter.on('onEnd', onEndFn);
+	// readTraceFiles(traces);
 }
+
+//dodac funkcje, ktora na koncu przefiltruje traces i usunie te, ktore sa puste, tzn nie wczytano dla nich nic z pliku - dzieki temu potem nie trzeba nic zmieniac w dalszje strukturze programu
 
 var traceFilesToRead = 0;
 function readTraceFiles(traces) {
