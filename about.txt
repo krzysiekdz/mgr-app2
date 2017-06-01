@@ -1,0 +1,35 @@
+ramka: event (js), recalc, layout, update layer tree, paint 
+parsowanie ramek: (parsowane ramki moge tez zapisywac do pliku aby zobaczyc czy otrzymujê to co chcê)
+	1. standardowa ramka - click event : 
+		-typy benchmarków: add, clear, update, replace, swap, select, filter
+		- gdy natrafiê na EventDispatch click to zaczyna siê ramka ktor¹ chcê pobrac
+		- pobieram wszystko az do napotkania obiektu Paint; odrzucam jedynie kolejne EventDispatch'e (chce miec tylko zdarzenie click)
+		- po napotkaniu Paint, pobieram tak dlugo Paint'y, az napotkam cos innego - wtedy wychodzê z parsowania tej ramki - 
+		- cofnac sie w indeksie 1 - byc moze to kolejny EventDispatch, ktory rozpocznie kolejn¹ ramkê
+	2. fetch - ramka typu fetch 
+		- dzieli siê na 2 mniejsze ramki, oba wyniki zaprezentowac w odzielnych rubrykach?
+		- albo tez pokazac tylko t¹ g³own¹ ramkê - czyli od readystate = 4 do paint
+		- bardziej elegancko bedzie pokazac 2 wykresy - jak na dane czekamy - czyli od czasu click do ResourceFinish - pokazac wtedy czasy 
+		- ale znacznie prosciej bedzie pokazac tylko drugi wykres - ten od czasu readystate = 4 - tak zrobie najpierw, bo nie wiem czy to duzo komplikacji mi nie wniesie 
+		- na razie wiec prostsza wersja - tylko od readystate = 4 ; 
+		- poczatek XHRReadyStateChange.readyState === 4 do paint 
+	3. load - zrobic rêcznie - to mozna równie dobrze pokazac na timeline i spisac zamiast robic w programie - bedzie szybciej; load jest zbyt indywidualny zeby pokazac go w generowanych wykresach - ³atwiej bedzie zrobic zrzuty z timeline, ale w wykresach generowanych moge zawrzec pewne ogolne czasy, jak np czas calkowity
+		- skladowe: receiveResponse, parse html, send request/receive response (zasoby css, js), parse stylesheet (bootstrap, style.css), evaluate script (main.js) - np angular robi duzo zadañ przygotowawczych (kompilacja DOM); parsowanie html jest wstrzymane do czasu pobrania plikow css i js oraz ich parsowania (css) lub ewaluacji (js) - chyba ze wystepuja w innych miejsach programu, tak ze budowanie DOM moze nastapic jako pierwsze (budowanie DOM - czyli parse html); recalc, layout, update layer, paint
+		event load - po kazdym za³adowaniu zasobu
+		angular - eval script dlu¿szy, potem na DOMContentLoaded tez wywolania angulara
+		
+		- parsowanie ramki dosyc skomplikowane, bo paint wystepuje tez w trakcie, np angular potem robi ¿¹dania ajax po zasoby
+		
+		- z traces moge to recznie odczytac zamiast parsowac i wyliczac i potem generowac w widoku
+	4. input 
+		- event dispatch - w nim jest layout - jako czas event podac event minus layout; event input w angularze jest dodawany, w vanilla nic nie robie gdy jest przyciksany przycisk wiec event jest krotki (ok 0,3ms) - 
+		- tutaj wiec korekcja ramki, ze czas event to (event - layout), oraz zobaczyc czy layout jest pobierany dobrze (bo jest wewnatrz event)
+		- byc moze ustawic ze recalc to 0 
+		dlaczego layout wystepuje w event? - moze dlatego, ze event input zaklada ze pole tekstowe juz zosta³o zaktulalizowane w DOM (a skoro tak, musialo siê zrobic recalc i layout)
+	5. edit - to samo co input, ale dochodzi jeszcze jedno layout w event - tez upewnic sie ze dobrze pobieram i obliczam czas event 
+		- vanilla js ma krotki event input, angular juz dluzszy - roznice beda tylko w tym miejscu
+	6. remove - wykresy ró¿nia sie miedzy angularem a vanillajs - byc moze chodzi o wersje keyed i non-keyed
+		- w event wystepuje recalc
+	7. search - 
+		- w czasie event sa layout i recalc - tez sprawdzic czy dobrze jest parsowane
+	8. memory - major gc jedynie mnie interesuje, tj usedHeapSizeBefore oraz usedHeapSizeAfter - podac obie wartosci

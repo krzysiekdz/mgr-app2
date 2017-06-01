@@ -37,14 +37,14 @@ var toRun = {
 	swap:[], 
 	fetch: [],
 	load: [],
-	input: [],
+	input: [0],
 	edit: [],
 	select: [],
 	remove: [],
 	filter: [],
 	search: [],
 	memory: [],
-	all_benchmarks:true,
+	all_benchmarks:false,
 	all_frameworks: true,
 	frameworks: []
 };

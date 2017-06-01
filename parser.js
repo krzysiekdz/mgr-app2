@@ -1,3 +1,5 @@
+var names = require('./names/names');
+
 exports.parse = parse;
 function parse(traces) {
 	var parser = new TraceParser(traces);
@@ -12,7 +14,7 @@ function TraceParser(traces) {
 TraceParser.prototype.parse = function() {
 	for(var i = 0; i < this.traces.length; i++) {
 		var trace = this.traces[i];
-		if(trace.framework === '' && trace.benchmark === '') {
+		if(trace.benchmark === '') { //ustalic jakie typy ramek beda parsowane
 			//konkretny sposob parsowania
 		} else {
 			trace.logs = this.parseClickEventFrames(trace.logs);//parsed logs - only necessary frames
@@ -21,7 +23,6 @@ TraceParser.prototype.parse = function() {
 	}
 }
 
-//potzebuje 2 czasy : dur - czyli czas trwania (wall time) oraz ts - oblicze dzieki niemu dlugosc calej ramki
 TraceParser.prototype.parseClickEventFrames = function(logs) {
 	this.parsedLogs = [];
 	this.i = 0;
@@ -30,7 +31,7 @@ TraceParser.prototype.parseClickEventFrames = function(logs) {
 		var log = logs[this.i];
 
 		if(this.isEventClick(log)) {
-			this.parseSingleFrame(logs);
+			this.parseClickEventFrame(logs);
 		}
 			
 	}
@@ -45,7 +46,7 @@ TraceParser.prototype.isEventClick = function(log) {
 }
 
 
-TraceParser.prototype.parseSingleFrame = function(logs) {
+TraceParser.prototype.parseClickEventFrame = function(logs) {
 	this.parsedLogs.push(logs[this.i]); //get EventDispatch log
 	this.i++;
 
@@ -61,6 +62,8 @@ TraceParser.prototype.parseSingleFrame = function(logs) {
 	this.i--; //set counter 1 step back
 }
 
+
+//------------------------
 
 TraceParser.prototype.toFrames = function(parsedLogs) {
 	var frames = [];
@@ -163,6 +166,10 @@ function reducePaints(frame) {
 function prepareFrame(frame) {
 	frame.length = (frame.end - frame.start + frame.end_dur) / 1000;
 	frame.sum = frame.event + frame.recalc + frame.layout + frame.update + frame.paint;
+	// frame.sum /= 1000;
+	if(frame.sum > frame.length) {
+		throw "wrong frame length; sum = " + frame.sum + ", length = " + frame.length;
+	}
 	delete frame.start;
 	delete frame.end;
 	delete frame.end_dur;

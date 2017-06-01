@@ -19,7 +19,7 @@ names.prepare = function(toRun) {
 			names.frameworksToRun = names.frameworks;
 			console.log('all frameworks count:', names.frameworks.length);
 		} 
-		else if (key === 'frameworks') { //frameworks array
+		else if (key === 'frameworks' && !toRun.all_frameworks) { //frameworks array
 			if(toRun.frameworks.length > 0) {
 				var frams = toRun.frameworks;
 				for (var i = 0; i < frams.length; i++) {
@@ -27,7 +27,7 @@ names.prepare = function(toRun) {
 				}
 			}
 		} 
-		else {
+		else if (!toRun.all_benchmarks) {
 			if(toRun[key].length > 0) {//benchmarks array
 				var benchs = toRun[key];
 				for(var i = 0; i < benchs.length; i++ ) {
