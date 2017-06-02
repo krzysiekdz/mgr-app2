@@ -18,6 +18,7 @@ function loadTraces(onEndFn) {
 				framework_index: frams[i].sort_index,
 				benchmark: benchs[j].name,
 				benchmark_index: benchs[j].sort_index,
+				memory: (benchs[j].name.indexOf('memory') > -1 ) ? true:false,
 			});
 		}
 	}

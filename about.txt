@@ -1,4 +1,6 @@
 ramka: event (js), recalc, layout, update layer tree, paint 
+trzeba rozpatrzyc wszystkie typy ramek dla implementacji keyed i non-keyed, aby umieæ odpowiednio przekonwertowac ka¿dy przypadek ramki
+
 parsowanie ramek: (parsowane ramki moge tez zapisywac do pliku aby zobaczyc czy otrzymujê to co chcê)
 	1. standardowa ramka - click event : 
 		-typy benchmarków: add, clear, update, replace, swap, select, filter
@@ -6,7 +8,7 @@ parsowanie ramek: (parsowane ramki moge tez zapisywac do pliku aby zobaczyc czy 
 		- pobieram wszystko az do napotkania obiektu Paint; odrzucam jedynie kolejne EventDispatch'e (chce miec tylko zdarzenie click)
 		- po napotkaniu Paint, pobieram tak dlugo Paint'y, az napotkam cos innego - wtedy wychodzê z parsowania tej ramki - 
 		- cofnac sie w indeksie 1 - byc moze to kolejny EventDispatch, ktory rozpocznie kolejn¹ ramkê
-	2. fetch - ramka typu fetch 
+	2. fetch - ramka typu fetch - mozliwe 2 podejscia, na razie zrobiæ tylko prostsze - wyniki dla event xhr, nie dla click
 		- dzieli siê na 2 mniejsze ramki, oba wyniki zaprezentowac w odzielnych rubrykach?
 		- albo tez pokazac tylko t¹ g³own¹ ramkê - czyli od readystate = 4 do paint
 		- bardziej elegancko bedzie pokazac 2 wykresy - jak na dane czekamy - czyli od czasu click do ResourceFinish - pokazac wtedy czasy 
@@ -22,6 +24,7 @@ parsowanie ramek: (parsowane ramki moge tez zapisywac do pliku aby zobaczyc czy 
 		
 		- z traces moge to recznie odczytac zamiast parsowac i wyliczac i potem generowac w widoku
 	4. input 
+		- event - keypress (zamiast click)
 		- event dispatch - w nim jest layout - jako czas event podac event minus layout; event input w angularze jest dodawany, w vanilla nic nie robie gdy jest przyciksany przycisk wiec event jest krotki (ok 0,3ms) - 
 		- tutaj wiec korekcja ramki, ze czas event to (event - layout), oraz zobaczyc czy layout jest pobierany dobrze (bo jest wewnatrz event)
 		- byc moze ustawic ze recalc to 0 
@@ -30,6 +33,26 @@ parsowanie ramek: (parsowane ramki moge tez zapisywac do pliku aby zobaczyc czy 
 		- vanilla js ma krotki event input, angular juz dluzszy - roznice beda tylko w tym miejscu
 	6. remove - wykresy ró¿nia sie miedzy angularem a vanillajs - byc moze chodzi o wersje keyed i non-keyed
 		- w event wystepuje recalc
-	7. search - 
+	7. search - event keypress
 		- w czasie event sa layout i recalc - tez sprawdzic czy dobrze jest parsowane
 	8. memory - major gc jedynie mnie interesuje, tj usedHeapSizeBefore oraz usedHeapSizeAfter - podac obie wartosci
+	
+nalezy potem wspomniec o tym, ze moga wystepowac sytuacje, gdy w czasie wykonywania js-a ma miejsce recalc lub layout - co wtedy? 
+
+//---------------------------------
+jak dzia³a - parser.parse() :
+
+TraceParser.prototype.parse = function() {
+	for(var i = 0; i < this.traces.length; i++) {
+		var trace = this.traces[i];
+		if(trace.benchmark === '') { //ustalic jakie typy ramek beda parsowane
+			//konkretny sposob parsowania
+		} else {
+			trace.logs = this.parseClickEventFrames(trace.logs);//parsed logs - only necessary frames
+			trace.frames = this.toFrames(trace.logs);
+		}
+	}
+}
+
+trace.logs - surowe logi - nasz pomiar zebrany za pomoc¹ app1 (mo¿na wyœwietliæ w chrome://tracing) - logi z ka¿dego trace trafiaj¹ do parsera; pierwszy krok to parsowanie wlaœciwych ramek (mo¿na te¿ to nazwaæ filtrowaniem); wynik tej cz¹stkowej operacji mo¿na zobaczyc w folderze parsed-logs wyswietlajac za pomoc¹ chrome:tracing - widzimy juz tylko te dane, ktore bêd¹ nam potrzebne (dane s¹ wiêc przefiltrowane)
+w drugim kroku, nasze przefiltrowane logi bêd¹ konwertowane na obiekty ramek i zapisywane w trace.frames (dla kazdego trace'a np add_1k ma trace.frames - i w nim np 10 obiektów ramek)

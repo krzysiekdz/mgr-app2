@@ -16,14 +16,14 @@ names.prepare = function(toRun) {
 			console.log('all benchmarks count:', all_b.length);
 		} 
 		else if(key === 'all_frameworks' && toRun[key]) { //all frameworks
-			names.frameworksToRun = names.frameworks;
-			console.log('all frameworks count:', names.frameworks.length);
+			names.frameworksToRun = names.frameworks.all;
+			console.log('all frameworks count:', names.frameworks.all.length);
 		} 
 		else if (key === 'frameworks' && !toRun.all_frameworks) { //frameworks array
 			if(toRun.frameworks.length > 0) {
 				var frams = toRun.frameworks;
 				for (var i = 0; i < frams.length; i++) {
-					names.frameworksToRun.push(names.frameworks[frams[i]]);
+					names.frameworksToRun.push(names.frameworks.all[frams[i]]);
 				}
 			}
 		} 

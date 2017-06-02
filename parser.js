@@ -1,9 +1,12 @@
 var names = require('./names/names');
+var cats = names.benchmarks.categories;
+var frms = names.frameworks;
 
 exports.parse = parse;
 function parse(traces) {
 	var parser = new TraceParser(traces);
 	parser.parse();
+	// console.log(frms.isFramework())
 }
 
 
@@ -11,43 +14,99 @@ function TraceParser(traces) {
 	this.traces = traces;
 }
 
+
 TraceParser.prototype.parse = function() {
 	for(var i = 0; i < this.traces.length; i++) {
 		var trace = this.traces[i];
-		if(trace.benchmark === '') { //ustalic jakie typy ramek beda parsowane
-			//konkretny sposob parsowania
-		} else {
-			trace.logs = this.parseClickEventFrames(trace.logs);//parsed logs - only necessary frames
-			trace.frames = this.toFrames(trace.logs);
+		if(trace.memory) { //memory traces
+			
+		} 
+		else if (trace.load) {//load traces
+
+		}
+		else { //rest cpu traces
+			
+			if(isCategory(cats.input, trace.benchmark) || isCategory(cats.edit, trace.benchmark)) {//input, edit traces
+				trace.logs = this.filterLogs(trace.logs, isEventDispatch, 'keypress');
+				trace.frames = this.toFrames(trace.logs, isEventDispatch, 'keypress', adapterEvent_Layout);
+			} 
+			else if (isCategory(cats.fetch, trace.benchmark)) {//fetch traces
+
+				if(frms.isFramework(trace.framework, frms.vanilla_nonk, frms.vanilla_keyed)) {//vanillajs
+					trace.logs = this.filterLogs(trace.logs, isXHRReadyStateChange);
+					trace.frames = this.toFrames(trace.logs, isXHRReadyStateChange);
+				} 
+				else if(frms.isFramework(trace.framework, frms.angular1_nonk, frms.angular1_keyed)) {//angular1
+					trace.logs = this.filterLogs(trace.logs, isXHRLoad);
+					trace.frames = this.toFrames(trace.logs, isXHRLoad);	
+				} 					//other frameworks sholud be implemented
+				
+			} 
+			else if (isCategory(cats.remove, trace.benchmark)) {//remove traces
+				trace.logs = this.filterLogs(trace.logs, isEventDispatch, 'click');
+				trace.frames = this.toFrames(trace.logs, isEventDispatch, 'click');
+			} 
+			else if (isCategory(cats.search, trace.benchmark)) {
+				trace.logs = this.filterLogs(trace.logs, isEventDispatch, 'keypress');
+				trace.frames = this.toFrames(trace.logs, isEventDispatch, 'keypress');
+			}
+			else { //rest of benchmarks
+				trace.logs = this.filterLogs(trace.logs, isEventDispatch, 'click');
+				trace.frames = this.toFrames(trace.logs, isEventDispatch, 'click');
+			}
+			
 		}
 	}
 }
 
-TraceParser.prototype.parseClickEventFrames = function(logs) {
+//filtering logs to get only necessary logs; frames consist of this filtered logs
+TraceParser.prototype.filterLogs = function(logs, isFirstElemOfFrame, name) {
 	this.parsedLogs = [];
 	this.i = 0;
 
 	for( ; this.i < logs.length; this.i++) {
 		var log = logs[this.i];
 
-		if(this.isEventClick(log)) {
-			this.parseClickEventFrame(logs);
+		if(isFirstElemOfFrame(log, name)) {
+			this.filterFrame(logs);
 		}
-			
 	}
 	return this.parsedLogs;
 }
 
-TraceParser.prototype.isEventClick = function(log) {
-	if(log.name === 'EventDispatch' && log.args.data.type === 'click') {
+ function isEventDispatch(log, evt_name) {
+	if(log.name === 'EventDispatch' && log.args.data.type === evt_name) {
+		return true;
+	}
+	return false;
+}
+
+ function isXHRReadyStateChange(log) {
+	if(log.name === 'XHRReadyStateChange' && log.args.data.readyState === 4) {
+		return true;
+	}
+	return false;
+}
+
+ function isXHRLoad(log) {
+	if(log.name === 'XHRLoad') {
+		return true;
+	}
+	return false;
+}
+
+function isCategory(category, bench_name) {
+	if(bench_name.indexOf(category.name) === 0) {
 		return true;
 	}
 	return false;
 }
 
 
-TraceParser.prototype.parseClickEventFrame = function(logs) {
-	this.parsedLogs.push(logs[this.i]); //get EventDispatch log
+
+
+TraceParser.prototype.filterFrame = function(logs) {
+	this.parsedLogs.push(logs[this.i]); //get EventDispatch or XHRReadyStateChange
 	this.i++;
 
 	while( (logs[this.i].name !== 'Paint') && (this.i < logs.length) ) {//get every log until it is Paint log; if it is another EventDispatch log, reject it
@@ -65,7 +124,8 @@ TraceParser.prototype.parseClickEventFrame = function(logs) {
 
 //------------------------
 
-TraceParser.prototype.toFrames = function(parsedLogs) {
+//adaptFrames - special function which sets up specific frame params (for example reduces event=event-layout for specific cases)
+TraceParser.prototype.toFrames = function(parsedLogs, isFirstElemOfFrame, name, adaptFrames) { 
 	var frames = [];
 	var fno = 0;
 	var i = 0;
@@ -73,7 +133,7 @@ TraceParser.prototype.toFrames = function(parsedLogs) {
 	for( ; i < parsedLogs.length; i++) {
 		var log = parsedLogs[i];
 
-		if(this.isEvent(log)) {//dur
+		if(isFirstElemOfFrame(log, name)) {//dur
 			frames.push({
 				frameNo: ++fno,
 				event: log.dur / 1000,
@@ -82,52 +142,60 @@ TraceParser.prototype.toFrames = function(parsedLogs) {
 				layout: [],
 				update: 0,
 				paint: [],
+				gc: [],
 			});
-		} else if(this.isRecalc(log)) {//ph
+		} else if(isGC(log)) {//ph
+			frames[fno-1].gc.push(log);
+		} else if(isRecalc(log)) {//ph
 			frames[fno-1].recalc.push(log);
-		} else if(this.isLayout(log)) {//ph
+		} else if(isLayout(log)) {//ph
 			frames[fno-1].layout.push(log);
-		} else if(this.isUpdateLayer(log)) {//dur
+		} else if(isUpdateLayer(log)) {//dur
 			frames[fno-1].update += log.dur/1000;
-		} else if(this.isPaint(log)) {//dur
+		} else if(isPaint(log)) {//dur
 			// frames[fno-1].paint += log.dur;
 			frames[fno-1].paint.push(log);//for last ts and dur to count frame length 
 		}
 	}
 
 	this.calculateFrames(frames);
+	if(adaptFrames && typeof adaptFrames == 'function') {
+		adaptFrames(frames);
+	}
+	this.finalizeFrames(frames);
 
 	return frames;
 }
 
-TraceParser.prototype.isEvent = function(log) {
-	return log.name === 'EventDispatch' ? true : false;
-}
 
-TraceParser.prototype.isRecalc = function(log) {
+function isRecalc(log) {
 	return log.name === 'UpdateLayoutTree' ? true : false;
 }
 
-TraceParser.prototype.isLayout = function(log) {
+function isLayout(log) {
 	return log.name === 'Layout' ? true : false;
 }
 
-TraceParser.prototype.isUpdateLayer = function(log) {
+function isUpdateLayer(log) {
 	return log.name === 'UpdateLayerTree' ? true : false;
 }
 
-TraceParser.prototype.isPaint = function(log) {
+function isPaint(log) {
 	return log.name === 'Paint' ? true : false;
 }
 
-//algorithm for recalc and layout logs is: if there are ph:B and ph:E one after another
+function isGC(log) {
+	return (log.name === 'MinorGC') ? true : false;
+}
+
+
 TraceParser.prototype.calculateFrames = function(frames) {
 	for(var i = 0; i < frames.length; i++) {
 		var frame = frames[i];
+		frame.gc = reduce(frame.gc) / 1000;
 		frame.recalc = reduce(frame.recalc) / 1000;
 		frame.layout = reduce(frame.layout) / 1000;
 		frame.paint = reducePaints(frame) / 1000;
-		prepareFrame(frame);
 	}
 }
 
@@ -163,16 +231,27 @@ function reducePaints(frame) {
 	return sum;
 }
 
-function prepareFrame(frame) {
-	frame.length = (frame.end - frame.start + frame.end_dur) / 1000;
-	frame.sum = frame.event + frame.recalc + frame.layout + frame.update + frame.paint;
-	// frame.sum /= 1000;
-	if(frame.sum > frame.length) {
-		throw "wrong frame length; sum = " + frame.sum + ", length = " + frame.length;
+TraceParser.prototype.finalizeFrames = function(frames) {
+	for(var i = 0; i < frames.length; i++) {
+		var frame = frames[i];
+
+		frame.length = (frame.end - frame.start + frame.end_dur) / 1000;
+		frame.sum = frame.event + frame.recalc + frame.layout + frame.update + frame.paint;
+
+		if(frame.sum > frame.length) {
+			throw "wrong frame length; sum = " + frame.sum + ", length = " + frame.length;
+		}
+		delete frame.start;
+		delete frame.end;
+		delete frame.end_dur;
+	}	
+}
+
+function adapterEvent_Layout(frames) {
+	for(var i = 0; i < frames.length; i++) {
+		var frame = frames[i];
+		frame.event -= frame.layout;
 	}
-	delete frame.start;
-	delete frame.end;
-	delete frame.end_dur;
 }
 
 
