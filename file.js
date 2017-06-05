@@ -3,7 +3,7 @@ var resultsCache = []; //there will be objects with results of each benchmark; t
 var fileName = './app3/results.json';
 
 exports.saveResults = saveResults;
-function saveResults(traces) {
+function saveResults(traces) {//recording all traces to resultsCache array
 
 	for(var i = 0; i < traces.length; i++) {
 		var trace = traces[i];
@@ -18,7 +18,10 @@ function saveResults(traces) {
 				category_index: trace.category_index,
 			});
 		} else {
-			var type = (trace.benchmark.indexOf('mem-') > -1 ) ? "MEM" : "CPU";
+			var type = (trace.memory) ? "MEM" : "CPU";
+			if(trace.load)
+				type = 'LOAD';
+
 			resultsCache.push({
 				framework: trace.framework, 
 				framework_index: trace.framework_index,
@@ -31,6 +34,7 @@ function saveResults(traces) {
 		}
 	}
 
+	// console.log(resultsCache);
 	writeResults();
 }
 

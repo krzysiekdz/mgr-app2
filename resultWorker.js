@@ -6,9 +6,12 @@ exports.results = results;
 function results(traces) {
 	for(var i = 0; i < traces.length; i++) {
 		var trace = traces[i];
-		if(trace.benchmark.indexOf('mem-') > -1) {
+		if(trace.memory) {
 			//memory test
-		} else { //cpu test
+		} else if(trace.load) {
+
+		}
+		else { //cpu test
 			trace.results = proc(trace.frames);	
 		}
 	}
@@ -17,9 +20,10 @@ function results(traces) {
 }
 
 
-function proc(frames) {
+function proc(frames) {//frames - frames in one trace
 	var result = {
 		event: [],
+		gc: [],
 		recalc: [],
 		layout: [],
 		update: [],
@@ -27,9 +31,11 @@ function proc(frames) {
 		total: []
 	};
 	
+	//gathering all frames per trace in result object
 	for(var i = 0; i  < frames.length; i++) {
 		var frame = frames[i];
 		result.event.push(frame.event) ;
+		result.gc.push(frame.gc) ;
 		result.recalc.push(frame.recalc) ;
 		result.layout.push(frame.layout) ;
 		result.update.push(frame.update) ;
@@ -46,6 +52,7 @@ function proc(frames) {
 
 function cut(result) {
 	result.event = reject(result.event);
+	result.gc = reject(result.gc);
 	result.recalc = reject(result.recalc);
 	result.layout = reject(result.layout);
 	result.update= reject(result.update);
@@ -64,6 +71,7 @@ function reject(arr) {
 function stat(result) {
 	//stdev counting
 	result.event_stdev = jstat(result.event).stdev();
+	result.gc_stdev = jstat(result.gc).stdev();
 	result.recalc_stdev = jstat(result.recalc).stdev();
 	result.layout_stdev = jstat(result.layout).stdev();
 	result.update_stdev = jstat(result.update).stdev();
@@ -72,6 +80,7 @@ function stat(result) {
 
 	//mean counting
 	result.event = jstat(result.event).mean();
+	result.gc = jstat(result.gc).mean();
 	result.recalc = jstat(result.recalc).mean();
 	result.layout = jstat(result.layout).mean();
 	result.update = jstat(result.update).mean();
@@ -154,14 +163,25 @@ function normalizeBenchmarks(benchsObj) {
 }
 
 function normalize(b1, b0) {//b0 - vanillajs benchmark, b1 - some framework benchmark; b1 and b0 are the same test cases (for example both are 'add_1k')
-	b1.event_factor = b1.event / b0.event;
-	b1.recalc_factor = b1.recalc / b0.recalc;
-	b1.layout_factor = b1.layout / b0.layout;
-	b1.update_factor = b1.update / b0.update;
-	b1.paint_factor = b1.paint / b0.paint;
+	b1.event_factor = b1.gc_factor = b1.recalc_factor = b1.layout_factor = b1.update_factor = 0;
+
+	if(b0.event)
+		b1.event_factor = b1.event / b0.event;
+	if(b0.gc)
+		b1.gc_factor = b1.gc / b0.gc;
+	if(b0.recalc)
+		b1.recalc_factor = b1.recalc / b0.recalc;
+	if(b0.layout)
+		b1.layout_factor = b1.layout / b0.layout;
+	if(b0.update)
+		b1.update_factor = b1.update / b0.update;
+	if(b0.paint)
+		b1.paint_factor = b1.paint / b0.paint;
+
 	b1.total_factor = b1.total / b0.total;
 }
 
+//summary for all benchmarks results per framework
 function frameworkSummaryAll(traces) {
 	var frms = {};
 	for(var i = 0; i < traces.length; i++) {
@@ -177,11 +197,13 @@ function frameworkSummaryAll(traces) {
 
 	for(var frm in frms) {
 
+		//framework summary object is added to traces
 		var frmRes = {
 			framework: frm,
 			framework_index: frms[frm].sort_index,
 			results: {
 				event: 0,
+				gc:0,
 				recalc: 0,
 				layout: 0,
 				update: 0,
@@ -190,29 +212,61 @@ function frameworkSummaryAll(traces) {
 			},
 			summary: true,//summary object
 			category: "all",
+			category_index: -100,
 		};
 		traces.push(frmRes);//summary object added to traces
 
 		frmRes = frmRes.results;
 		frm = frms[frm];
+		var e_ctr = gc_ctr = r_ctr = l_ctr = u_ctr = p_ctr = 0;
 		for(var i = 0; i < frm.length; i++) {
-			frmRes.event += frm[i].event_factor;
-			frmRes.recalc += frm[i].recalc_factor;
-			frmRes.layout += frm[i].layout_factor;
-			frmRes.update += frm[i].update_factor;
-			frmRes.paint += frm[i].paint_factor;
+			//sum only if exists
+			if(frm[i].event_factor) {
+				frmRes.event += frm[i].event_factor;
+				e_ctr++;
+			}
+			if(frm[i].gc_factor){
+				frmRes.gc += frm[i].gc_factor;
+				gc_ctr++;
+			}
+			if(frm[i].recalc_factor){
+				frmRes.recalc += frm[i].recalc_factor;
+				r_ctr++;
+			}
+			if(frm[i].layout_factor){
+				frmRes.layout += frm[i].layout_factor;
+				l_ctr++;
+			}
+			if(frm[i].update_factor){
+				frmRes.update += frm[i].update_factor;
+				u_ctr++;
+			}
+			if(frm[i].paint_factor){
+				frmRes.paint += frm[i].paint_factor;
+				p_ctr++;
+			}
+
 			frmRes.total += frm[i].total_factor;
 		}
 
-		frmRes.event = frmRes.event / frm.length;
-		frmRes.recalc = frmRes.recalc / frm.length;
-		frmRes.layout = frmRes.layout / frm.length;
-		frmRes.update = frmRes.update / frm.length;
-		frmRes.paint = frmRes.paint / frm.length;
+		if(e_ctr)
+			frmRes.event = frmRes.event / e_ctr;
+		if(gc_ctr)
+			frmRes.gc = frmRes.gc / gc_ctr;
+		if(r_ctr)
+			frmRes.recalc = frmRes.recalc / r_ctr;
+		if(l_ctr)
+			frmRes.layout = frmRes.layout / l_ctr;
+		if(u_ctr)
+			frmRes.update = frmRes.update / u_ctr;
+		if(p_ctr)
+			frmRes.paint = frmRes.paint / p_ctr;
+
 		frmRes.total = frmRes.total / frm.length;
 	}
 }
 
+//summaries for every benchmark category per framework
 function frameworkSummaryCat(traces, categories) {
 
 	function getCategory(trace) {
@@ -228,7 +282,7 @@ function frameworkSummaryCat(traces, categories) {
 	for(var i = 0; i < traces.length; i++) {
 		var trace = traces[i];
 
-		if(trace.summary)//omiting summaries
+		if(trace.summary)//omiting summaries - they are existing becaue we have called frameworkSummaryAll()
 			continue;
 
 		var frm = trace.framework + getCategory(trace).name;
@@ -244,11 +298,13 @@ function frameworkSummaryCat(traces, categories) {
 
 	for(var frm in frms) {
 
+		//summary object for category per framework
 		var frmRes = {
 			framework: frms[frm].framework,
 			framework_index: frms[frm].sort_index,
 			results: {
 				event: 0,
+				gc: 0,
 				recalc: 0,
 				layout: 0,
 				update: 0,
@@ -263,40 +319,50 @@ function frameworkSummaryCat(traces, categories) {
 
 		frmRes = frmRes.results;
 		frm = frms[frm];
+		var e_ctr = gc_ctr = r_ctr = l_ctr = u_ctr = p_ctr = 0;
 		for(var i = 0; i < frm.length; i++) {
-			frmRes.event += frm[i].event_factor;
-			frmRes.recalc += frm[i].recalc_factor;
-			frmRes.layout += frm[i].layout_factor;
-			frmRes.update += frm[i].update_factor;
-			frmRes.paint += frm[i].paint_factor;
+			//sum only if exists
+			if(frm[i].event_factor) {
+				frmRes.event += frm[i].event_factor;
+				e_ctr++;
+			}
+			if(frm[i].gc_factor){
+				frmRes.gc += frm[i].gc_factor;
+				gc_ctr++;
+			}
+			if(frm[i].recalc_factor){
+				frmRes.recalc += frm[i].recalc_factor;
+				r_ctr++;
+			}
+			if(frm[i].layout_factor){
+				frmRes.layout += frm[i].layout_factor;
+				l_ctr++;
+			}
+			if(frm[i].update_factor){
+				frmRes.update += frm[i].update_factor;
+				u_ctr++;
+			}
+			if(frm[i].paint_factor){
+				frmRes.paint += frm[i].paint_factor;
+				p_ctr++;
+			}
+
 			frmRes.total += frm[i].total_factor;
 		}
 
-		frmRes.event = frmRes.event / frm.length;
-		frmRes.recalc = frmRes.recalc / frm.length;
-		frmRes.layout = frmRes.layout / frm.length;
-		frmRes.update = frmRes.update / frm.length;
-		frmRes.paint = frmRes.paint / frm.length;
+		if(e_ctr)
+			frmRes.event = frmRes.event / e_ctr;
+		if(gc_ctr)
+			frmRes.gc = frmRes.gc / gc_ctr;
+		if(r_ctr)
+			frmRes.recalc = frmRes.recalc / r_ctr;
+		if(l_ctr)
+			frmRes.layout = frmRes.layout / l_ctr;
+		if(u_ctr)
+			frmRes.update = frmRes.update / u_ctr;
+		if(p_ctr)
+			frmRes.paint = frmRes.paint / p_ctr;
+
 		frmRes.total = frmRes.total / frm.length;
 	}
 }
-
-// exports.workoutResults = workoutResults;
-// function workoutResults(results, bench) {
-// 	if(bench.indexOf('mem-') === -1) { //cpu tests
-// 		results = results.reduce( (a,v) => a.concat((v.paint.end - v.click.ts) / 1000 ) ,  []);//sample time: paint.end - click.start = sample duration
-// 	} else {
-// 		results = results.reduce( (a,v) => a.concat((v.mem.size)) ,  []);
-// 	}
-
-// 	results.sort((a,b) => a - b);//ascending sort
-// 	results.splice(util.config.TEST_COUNT - util.config.REJECT_COUNT);//rejecting the worst results
-// 	var stat = jstat(results);
-// 	return {
-// 		min: stat.min(),
-// 		max: stat.max(),
-// 		mean: stat.mean(),
-// 		geomean: stat.geomean(),
-// 		stdev: stat.stdev()
-// 	};
-// }

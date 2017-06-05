@@ -13,11 +13,11 @@ function traceProcessor() {
 
 		parser.parse(traces);//>> traces.frames
 
-		// resultworker.results(traces);// >> traces.results
+		resultworker.results(traces);// >> traces.results
 
-		file.saveParsedTraces(traces);
-		file.saveFrames(traces);
-		// file.saveResults(traces);
+		// file.saveParsedTraces(traces);
+		// file.saveFrames(traces);
+		file.saveResults(traces);
 	});
 }
 

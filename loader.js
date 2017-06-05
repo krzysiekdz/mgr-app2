@@ -19,6 +19,7 @@ function loadTraces(onEndFn) {
 				benchmark: benchs[j].name,
 				benchmark_index: benchs[j].sort_index,
 				memory: (benchs[j].name.indexOf('memory') > -1 ) ? true:false,
+				load: (benchs[j].name.indexOf('load') > -1 ) ? true:false,
 			});
 		}
 	}

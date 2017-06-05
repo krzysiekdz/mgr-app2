@@ -17,7 +17,7 @@ names.benchmarks.categories.filter = {name: 'filter', sort_index:11 };
 names.benchmarks.categories.search = {name: 'search', sort_index:12 };
 names.benchmarks.categories.memory = {name: 'memory', sort_index:13 };
 
-names.benchmarks.categories.all = [
+names.benchmarks.categories.all = [//14
 	names.benchmarks.categories.add,		//0
 	names.benchmarks.categories.clear,		//1
 	names.benchmarks.categories.update,		//2
@@ -27,7 +27,9 @@ names.benchmarks.categories.all = [
 	names.benchmarks.categories.load,		//6
 	names.benchmarks.categories.input,		//7
 	names.benchmarks.categories.edit,		//8
-	names.benchmarks.categories.filter,		//9
-	names.benchmarks.categories.search,		//10
-	names.benchmarks.categories.memory,		//11
+	names.benchmarks.categories.select,		//9
+	names.benchmarks.categories.remove,		//10
+	names.benchmarks.categories.filter,		//11
+	names.benchmarks.categories.search,		//12
+	names.benchmarks.categories.memory,		//13
 ];

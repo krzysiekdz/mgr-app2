@@ -31,7 +31,9 @@ names.prepare = function(toRun) {
 			if(toRun[key].length > 0) {//benchmarks array
 				var benchs = toRun[key];
 				for(var i = 0; i < benchs.length; i++ ) {
-					names.benchmarksToRun.push(names.benchmarks[key]['all'][benchs[i]]);
+					var bench = names.benchmarks[key]['all'][benchs[i]];
+					if(bench !== undefined)
+						names.benchmarksToRun.push(bench);
 				}
 			}
 		}

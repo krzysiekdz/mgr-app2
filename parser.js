@@ -6,7 +6,6 @@ exports.parse = parse;
 function parse(traces) {
 	var parser = new TraceParser(traces);
 	parser.parse();
-	// console.log(frms.isFramework())
 }
 
 
@@ -28,7 +27,7 @@ TraceParser.prototype.parse = function() {
 			
 			if(isCategory(cats.input, trace.benchmark) || isCategory(cats.edit, trace.benchmark)) {//input, edit traces
 				trace.logs = this.filterLogs(trace.logs, isEventDispatch, 'keypress');
-				trace.frames = this.toFrames(trace.logs, isEventDispatch, 'keypress', adapterEvent_Layout);
+				trace.frames = this.toFrames(trace.logs, isEventDispatch, 'keypress');
 			} 
 			else if (isCategory(cats.fetch, trace.benchmark)) {//fetch traces
 
@@ -39,7 +38,7 @@ TraceParser.prototype.parse = function() {
 				else if(frms.isFramework(trace.framework, frms.angular1_nonk, frms.angular1_keyed)) {//angular1
 					trace.logs = this.filterLogs(trace.logs, isXHRLoad);
 					trace.frames = this.toFrames(trace.logs, isXHRLoad);	
-				} 					//other frameworks sholud be implemented
+				} 					//other frameworks sholud be implemented here for fetch benchmark
 				
 			} 
 			else if (isCategory(cats.remove, trace.benchmark)) {//remove traces
@@ -68,7 +67,7 @@ TraceParser.prototype.filterLogs = function(logs, isFirstElemOfFrame, name) {
 		var log = logs[this.i];
 
 		if(isFirstElemOfFrame(log, name)) {
-			this.filterFrame(logs);
+			this.filterFrame(logs, isFirstElemOfFrame, name);
 		}
 	}
 	return this.parsedLogs;
@@ -103,18 +102,18 @@ function isCategory(category, bench_name) {
 }
 
 
-
-
-TraceParser.prototype.filterFrame = function(logs) {
-	this.parsedLogs.push(logs[this.i]); //get EventDispatch or XHRReadyStateChange
+TraceParser.prototype.filterFrame = function(logs, isFirstElemOfFrame, name) {
+	this.parsedLogs.push(logs[this.i]); //get EventDispatch or XHR (in general, firstElementOfFrame)
+	var threshold = logs[this.i].ts + logs[this.i].dur; //filter is cutting of every other frames before this threshold (that is during runnig java script - we dont wont them) - only GC logs can pass through
 	this.i++;
 
-	while( (logs[this.i].name !== 'Paint') && (this.i < logs.length) ) {//get every log until it is Paint log; if it is another EventDispatch log, reject it
-		if(logs[this.i].name !== 'EventDispatch')
+	while((this.i < logs.length) && (logs[this.i].name !== 'Paint')) {//get every log until it is Paint log; if it is another EventDispatch log, reject it
+		var log = logs[this.i];
+		if(!isFirstElemOfFrame(log, name) && (log.ts >= threshold || log.name === 'MinorGC' ))
 			this.parsedLogs.push(logs[this.i]);
 		this.i++;
 	}
-	while( (logs[this.i].name === 'Paint') && (this.i < logs.length) ) {//get every Paint log
+	while((this.i < logs.length) && (logs[this.i].name === 'Paint')) {//get every Paint log
 		this.parsedLogs.push(logs[this.i]);
 		this.i++;
 	}
@@ -247,6 +246,7 @@ TraceParser.prototype.finalizeFrames = function(frames) {
 	}	
 }
 
+//adapters now are not used
 function adapterEvent_Layout(frames) {
 	for(var i = 0; i < frames.length; i++) {
 		var frame = frames[i];
