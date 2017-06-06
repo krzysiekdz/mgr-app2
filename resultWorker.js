@@ -7,16 +7,17 @@ function results(traces) {
 	for(var i = 0; i < traces.length; i++) {
 		var trace = traces[i];
 		if(trace.memory) {
-			//memory test
+			trace.results = procMemory(trace.frames);	
 		} else if(trace.load) {
-
+			//do nothing; i read them manually
 		}
 		else { //cpu test
 			trace.results = proc(trace.frames);	
 		}
 	}
 
-	finalize(traces);
+	finalize(traces);//but skip load and memory traces
+	finalizeMemory(traces);
 }
 
 
@@ -107,7 +108,6 @@ function finalize(traces) {
 
 	for(var i = 0; i < traces.length; i++) {
 		var trace = traces[i];
-
 		//1 && 2
 		if(trace.framework.indexOf('keyed') > -1) {
 			trace.keyed = true;
@@ -154,6 +154,9 @@ function groupByBenchmarks(tracesArr) {
 function normalizeBenchmarks(benchsObj) {
 	for(var key in benchsObj) {
 		var benchs = benchsObj[key];
+		var trace = benchs[0];
+		if(trace.memory || trace.load) //omitting memory and load traces
+			continue;
 		var b0 = benchs[0].results;//vanillajs benchmark (keyed or nonkeyed)
 		for(var i = 1; i < benchs.length; i++) {
 			normalize(benchs[i].results, b0);
@@ -186,6 +189,10 @@ function frameworkSummaryAll(traces) {
 	var frms = {};
 	for(var i = 0; i < traces.length; i++) {
 		var trace = traces[i];
+
+		if(trace.memory || trace.load) //omitting memory and load traces
+			continue;
+
 		var frm = trace.framework;
 		if(frms[frm] === undefined) {
 			frms[frm] = [trace.results];
@@ -285,6 +292,9 @@ function frameworkSummaryCat(traces, categories) {
 		if(trace.summary)//omiting summaries - they are existing becaue we have called frameworkSummaryAll()
 			continue;
 
+		if(trace.memory || trace.load) //omitting memory and load traces
+			continue;
+
 		var frm = trace.framework + getCategory(trace).name;
 		if(frms[frm] === undefined) {
 			frms[frm] = [trace.results];
@@ -314,6 +324,199 @@ function frameworkSummaryCat(traces, categories) {
 			summary: true,//summary object
 			category: frms[frm].cat.name,
 			category_index: frms[frm].cat.sort_index,
+		};
+		traces.push(frmRes);//summary object added to traces
+
+		frmRes = frmRes.results;
+		frm = frms[frm];
+		var e_ctr = gc_ctr = r_ctr = l_ctr = u_ctr = p_ctr = 0;
+		for(var i = 0; i < frm.length; i++) {
+			//sum only if exists
+			if(frm[i].event_factor) {
+				frmRes.event += frm[i].event_factor;
+				e_ctr++;
+			}
+			if(frm[i].gc_factor){
+				frmRes.gc += frm[i].gc_factor;
+				gc_ctr++;
+			}
+			if(frm[i].recalc_factor){
+				frmRes.recalc += frm[i].recalc_factor;
+				r_ctr++;
+			}
+			if(frm[i].layout_factor){
+				frmRes.layout += frm[i].layout_factor;
+				l_ctr++;
+			}
+			if(frm[i].update_factor){
+				frmRes.update += frm[i].update_factor;
+				u_ctr++;
+			}
+			if(frm[i].paint_factor){
+				frmRes.paint += frm[i].paint_factor;
+				p_ctr++;
+			}
+
+			frmRes.total += frm[i].total_factor;
+		}
+
+		if(e_ctr)
+			frmRes.event = frmRes.event / e_ctr;
+		if(gc_ctr)
+			frmRes.gc = frmRes.gc / gc_ctr;
+		if(r_ctr)
+			frmRes.recalc = frmRes.recalc / r_ctr;
+		if(l_ctr)
+			frmRes.layout = frmRes.layout / l_ctr;
+		if(u_ctr)
+			frmRes.update = frmRes.update / u_ctr;
+		if(p_ctr)
+			frmRes.paint = frmRes.paint / p_ctr;
+
+		frmRes.total = frmRes.total / frm.length;
+	}
+}
+
+
+//-----------------------
+//memory results working...
+
+function procMemory(frames) {//frames - frames in one trace
+	var result = {
+		memory_before: [],
+		memory_after: [],
+	};
+	
+	//gathering all frames per trace in result object
+	for(var i = 0; i  < frames.length; i++) {
+		var frame = frames[i];
+		result.memory_before.push(frame.memory_before) ;
+		result.memory_after.push(frame.memory_after) ;
+	}
+
+	cut_m(result);
+	stat_m(result);
+
+	return result;
+}
+
+
+function cut_m(result) {
+	result.memory_before = reject(result.memory_before);
+	result.memory_after = reject(result.memory_after);
+}
+
+function stat_m(result) {
+	//stdev counting
+	result.memory_before_stdev = jstat(result.memory_before).stdev();
+	result.memory_after_stdev = jstat(result.memory_after).stdev();
+
+	//mean counting
+	result.memory_before = jstat(result.memory_before).mean();
+	result.memory_after = jstat(result.memory_after).mean();
+}
+
+//counting factor (framework memory / vanillajs memory) for each benchmark and overall factor per framework in memory results (which is aritmetic mean of factors)
+function finalizeMemory(traces) {
+	var keyedTraces = [], nonkTraces = [];
+
+	for(var i = 0; i < traces.length; i++) {
+		var trace = traces[i];
+		if(!trace.memory) //only memory traces
+			continue;
+
+		if(trace.framework.indexOf('keyed') > -1) {
+			trace.keyed = true;
+			keyedTraces.push(trace);
+		} else {
+			trace.keyed = false;
+			nonkTraces.push(trace);
+		}
+	}
+
+	keyedTraces = groupByBenchmarks(keyedTraces);
+	nonkTraces = groupByBenchmarks(nonkTraces);
+
+	normalizeMemoryBenchmarks(keyedTraces);
+	normalizeMemoryBenchmarks(nonkTraces);
+
+	//7 && 8
+	frameworkSummaryAll(traces);
+
+	//sumup categories
+	frameworkSummaryCat(traces, names.benchmarks.categories.all);
+}
+
+
+function normalizeMemoryBenchmarks(benchsObj) {
+	for(var key in benchsObj) {
+		var benchs = benchsObj[key];
+		var trace = benchs[0];
+		if(trace.memory || trace.load) //omitting memory and load traces
+			continue;
+		var b0 = benchs[0].results;//vanillajs benchmark (keyed or nonkeyed)
+		for(var i = 1; i < benchs.length; i++) {
+			normalize(benchs[i].results, b0);
+		}
+		normalize(b0, b0);
+	}
+}
+
+function normalize(b1, b0) {//b0 - vanillajs benchmark, b1 - some framework benchmark; b1 and b0 are the same test cases (for example both are 'add_1k')
+	b1.event_factor = b1.gc_factor = b1.recalc_factor = b1.layout_factor = b1.update_factor = 0;
+
+	if(b0.event)
+		b1.event_factor = b1.event / b0.event;
+	if(b0.gc)
+		b1.gc_factor = b1.gc / b0.gc;
+	if(b0.recalc)
+		b1.recalc_factor = b1.recalc / b0.recalc;
+	if(b0.layout)
+		b1.layout_factor = b1.layout / b0.layout;
+	if(b0.update)
+		b1.update_factor = b1.update / b0.update;
+	if(b0.paint)
+		b1.paint_factor = b1.paint / b0.paint;
+
+	b1.total_factor = b1.total / b0.total;
+}
+
+//summary for all benchmarks results per framework
+function frameworkSummaryAll(traces) {
+	var frms = {};
+	for(var i = 0; i < traces.length; i++) {
+		var trace = traces[i];
+
+		if(trace.memory || trace.load) //omitting memory and load traces
+			continue;
+
+		var frm = trace.framework;
+		if(frms[frm] === undefined) {
+			frms[frm] = [trace.results];
+			frms[frm].sort_index = trace.framework_index;
+		} else {
+			frms[frm].push(trace.results);
+		}
+	}
+
+	for(var frm in frms) {
+
+		//framework summary object is added to traces
+		var frmRes = {
+			framework: frm,
+			framework_index: frms[frm].sort_index,
+			results: {
+				event: 0,
+				gc:0,
+				recalc: 0,
+				layout: 0,
+				update: 0,
+				paint: 0,
+				total: 0,
+			},
+			summary: true,//summary object
+			category: "all",
+			category_index: -100,
 		};
 		traces.push(frmRes);//summary object added to traces
 

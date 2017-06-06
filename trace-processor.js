@@ -16,7 +16,7 @@ function traceProcessor() {
 		resultworker.results(traces);// >> traces.results
 
 		// file.saveParsedTraces(traces);
-		// file.saveFrames(traces);
+		file.saveFrames(traces);
 		file.saveResults(traces);
 	});
 }

@@ -36,7 +36,7 @@ var toRun = {
 	// replace: [0,1,2,3,4,5,6,7,8,9,10,11,12,13], 
 	// swap:[0,1,2], 
 	// fetch: [0,1],
-	load: [0],
+	// load: [0],
 	// input: [0,1],
 	// edit: [0,1],
 	// select: [0,1,2,3],
@@ -44,7 +44,7 @@ var toRun = {
 	// filter: [0,1],
 	// search: [0,1,2,3,4,5,6],
 	// memory: [0,1,2,3,4],
-	// all_benchmarks:true,
+	all_benchmarks:true,
 	all_frameworks: true,
 	// frameworks: []
 };

@@ -1,6 +1,7 @@
 var fs = require('fs');
 var resultsCache = []; //there will be objects with results of each benchmark; then it will be stored in file
 var fileName = './app3/results.json';
+var path = require('path');
 
 exports.saveResults = saveResults;
 function saveResults(traces) {//recording all traces to resultsCache array
@@ -52,13 +53,14 @@ function saveParsedTraces(traces) {
 	for(var i = 0; i < traces.length; i++) {
 		var log = traces[i];
 		var fileName = 'parsed-traces/' + log.framework + '/' + log.benchmark + '.json';
+		ensureDirname(fileName);
 
 		(function(fn){
 			fs.writeFile(fn, JSON.stringify(log.logs), { encoding: "utf8" }, (err) => {
 				if(err) {
 					return console.error("error while saving traces:" + fn);  
 				}
-				console.log("trace " + fn + " saved in file."); 
+				// console.log("trace " + fn + " saved in file."); 
 			});
 		})(fileName);
 	}
@@ -69,14 +71,22 @@ function saveFrames(traces) {
 	for(var i = 0; i < traces.length; i++) {
 		var log = traces[i];
 		var fileName = 'parsed-traces/' + log.framework + '/' + log.benchmark + '_frames.json';
+		ensureDirname(fileName);
 
 		(function(fn){
 			fs.writeFile(fn, JSON.stringify(log.frames), { encoding: "utf8" }, (err) => {
 				if(err) {
 					return console.error("error while saving traces:" + fn);  
 				}
-				console.log("frames " + fn + " saved in file."); 
+				// console.log("frames " + fn + " saved in file."); 
 			});
 		})(fileName);
 	}
+}
+
+function ensureDirname(fileName) {
+	var dirname = path.dirname(fileName);//returns directory name, that is traces/framework_name
+	if(!fs.existsSync(dirname)) {
+		fs.mkdirSync(dirname);
+	} 
 }

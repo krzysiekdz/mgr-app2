@@ -18,10 +18,11 @@ TraceParser.prototype.parse = function() {
 	for(var i = 0; i < this.traces.length; i++) {
 		var trace = this.traces[i];
 		if(trace.memory) { //memory traces
-			
+			trace.logs = this.filterLogs_Memory(trace.logs);
+			trace.frames = this.toFrames_Memory(trace.logs);
 		} 
 		else if (trace.load) {//load traces
-
+			//do nothing, i read this results manually
 		}
 		else { //rest cpu traces
 			
@@ -49,7 +50,7 @@ TraceParser.prototype.parse = function() {
 				trace.logs = this.filterLogs(trace.logs, isEventDispatch, 'keypress');
 				trace.frames = this.toFrames(trace.logs, isEventDispatch, 'keypress');
 			}
-			else { //rest of benchmarks
+			else { //rest of benchmarks: add, clear, update, replace, swap, ...
 				trace.logs = this.filterLogs(trace.logs, isEventDispatch, 'click');
 				trace.frames = this.toFrames(trace.logs, isEventDispatch, 'click');
 			}
@@ -254,46 +255,89 @@ function adapterEvent_Layout(frames) {
 	}
 }
 
+//--------------------------------------------------
+//memory parsing implementation
 
+TraceParser.prototype.filterLogs_Memory = function(logs) {
+	this.parsedLogs = [];
+	this.i = 0;
 
-// function readLogs(driver, frm, bench) {
-// 	return driver.manage().logs().get(webdriver.logging.Type.PERFORMANCE).then(logs => {
-// 		var click, paint, mem;
-		
-// 		logs.forEach(log => {
-// 			var p = JSON.parse(log.message).message.params;
-			
-// 			if(m.params.name === 'EventDispatch') {
-// 				if(m.params.args.data.type === 'click') {
-// 					click = {
-// 						type: 'click', 
-// 						ts: +m.params.ts, 
-// 						dur: +m.params.dur, 
-// 						end: +m.params.ts + m.params.dur 
-// 					};
-// 				}
-// 			} else if (m.params.name === 'Paint') {
-// 				if(click && m.params.ts > click.end ) {
-// 					paint = {
-// 						type: 'paint', 
-// 						ts: +m.params.ts, 
-// 						dur: +m.params.dur, 
-// 						end: +m.params.ts + m.params.dur 
-// 					}
-// 				}
-// 			} else if (m.params.name === 'MajorGC' && m.params.args.usedHeapSizeAfter) {
-// 				mem = {
-// 					type: 'gc', 
-// 					ts: +m.params.ts, 
-// 					size: Number(m.params.args.usedHeapSizeAfter) / 1024 / 1024
-// 				}
-// 			}
-// 		});
-// 		return {
-// 			click: click,
-// 			paint: paint,
-// 			mem: mem,
-// 		};
-// 	});
-// }
+	for( ; this.i < logs.length; this.i++) {
+		var log = logs[this.i];
+
+		if(isEventDispatch(log, 'click')) {
+			this.skipFrame(logs);
+			this.getMemoryLogs(logs);
+		}
+	}
+	return this.parsedLogs;
+}
+
+TraceParser.prototype.skipFrame = function(logs) {
+	this.i++;
+
+	while((this.i < logs.length) && (logs[this.i].name !== 'Paint')) {//get every log until it is Paint log; 
+		this.i++;
+	}
+	while((this.i < logs.length) && (logs[this.i].name === 'Paint')) {//get every Paint log
+		this.i++;
+	}
+}
+
+TraceParser.prototype.getMemoryLogs = function(logs) {
+	while((this.i < logs.length) && !isEventDispatch(logs[this.i], 'click') ) {//get every log until it is Paint log; 
+		if(isMajorGC(logs[this.i]))
+			this.parsedLogs.push(logs[this.i]);
+		this.i++;
+	}
+
+	this.parsedLogs.push({name: 'memory_frame_end'});
+
+	if(this.i !== logs.length) //if it is not last log
+		this.i--;
+}
+
+function isMajorGC(log) {
+	return (log.name === 'MajorGC') ? true : false;
+}
+
+TraceParser.prototype.toFrames_Memory = function(parsedLogs) { //parsedLogs - logs with MajorGC info
+	var frames = [];
+	var fno = 0;
+	var i = 0;
+	var before, after;
+
+	for( ; i < parsedLogs.length; i++) {
+		var log = parsedLogs[i];
+		fno++;
+		frames.push({
+			frameNo: fno,
+			memory_before: 0,
+			memory_after: 0,
+		});
+
+		before = [];
+		after = [];
+		while( (i < parsedLogs.length) && !(isMemoryFrameEnd(log)) ) {
+			if(log.args.usedHeapSizeBefore) {
+				before.push(log.args.usedHeapSizeBefore) ;
+			} else if(log.args.usedHeapSizeAfter) {
+				after.push(log.args.usedHeapSizeAfter) ;
+			}
+			i++;
+			log = parsedLogs[i];
+		}
+		before.sort((a,b) => a < b);
+		after.sort((a,b) => a > b);
+		frames[fno-1].memory_before = before[0] / 1024 / 1024;
+		frames[fno-1].memory_after = after[0] / 1024 / 1024;
+	}
+
+	return frames;
+}
+
+function isMemoryFrameEnd(log) {
+	return (log.name === 'memory_frame_end') ? true : false;
+}
+
 
