@@ -1,3 +1,5 @@
+katalog nadrzêdny (mgr-main) : https://github.com/krzysiekdz/mgr-main
+
 App2.
 Aplikacjê nalezy uruchomiæ, gdy zbierzemy ju¿ potrzebne wykresy czasowe w folderze traces (przy uzyciu app1). 
 App2 wczytuje wszystkie utworzone w folderze traces logi (wykresy), przetwarza je ( filtruje  tzn obcina 
