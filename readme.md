@@ -5,12 +5,12 @@ Mgr-App2
 
 
 Aplikację nalezy uruchomić, gdy [app1](https://github.com/krzysiekdz/mgr-app1) skończy działanie. App2:
-- wczytuje wszystkie logi z folderu traces
+- wczytuje wszystkie logi z folderu "traces"
 - przetwarza je (filtrowanie, konwersja do przystępniejszej postaci) 
 - oblicza średnie czasy trwania poszczegolnych operacji
 - podsumowuje te czasy
 - porównuje wyniki z czasami trwania operacji w czystym javascript. 
-- ostateczne dane zapisuje do pliku "app3/results.json" (app3 odpowiada za prezentację tych danych)
+- ostateczne dane zapisuje do pliku "app3/results.json" ([app3](https://github.com/krzysiekdz/mgr-app3) odpowiada za prezentację tych danych)
 
 Konfiguracja:<br>
 - Plik "cfg.js":
