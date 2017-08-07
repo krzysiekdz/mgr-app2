@@ -3,7 +3,9 @@ var names = require('./names/names');
 var fs = require('fs');
 
 var events = require('events');
-var eventEmitter = new events.EventEmitter();
+// var eventEmitter = new events.EventEmitter();
+
+var fn = undefined;
 
 exports.loadTraces = loadTraces;
 function loadTraces(onEndFn) {
@@ -13,17 +15,25 @@ function loadTraces(onEndFn) {
 
 	for(var i = 0; i < frams.length; i++) {
 		for(var j = 0; j < benchs.length; j++) {
-			traces.push({
-				framework: frams[i].name,
-				framework_index: frams[i].sort_index,
-				benchmark: benchs[j].name,
-				benchmark_index: benchs[j].sort_index,
-				memory: (benchs[j].name.indexOf('memory') > -1 ) ? true:false,
-				load: (benchs[j].name.indexOf('load') > -1 ) ? true:false,
-			});
+			try {
+				traces.push({
+					framework: frams[i].name,
+					framework_index: frams[i].sort_index,
+					benchmark: benchs[j].name,
+					bench_descr: benchs[j].descr,
+					omit_summary: benchs[j].omit_summary,
+					benchmark_index: benchs[j].sort_index,
+					memory: (benchs[j].name.indexOf('memory') > -1 ) ? true:false,
+					// load: (benchs[j].name.indexOf('load') > -1 ) ? true:false,
+					keyed: frams[i].keyed,
+				});
+			} catch (e){
+				console.log('error while loading:', benchs[j]);
+			}
 		}
 	}
-	eventEmitter.on('onEnd', onEndFn);
+	// eventEmitter.on('onEnd', onEndFn);
+	fn = onEndFn;
 	readTraceFiles(traces);
 }
 
@@ -58,7 +68,8 @@ function readTraceFiles(traces) {
 function beforeEnd(traces) {
 	console.log('traces has read:', readCount);
 	clearEmptyTraces(traces);
-	eventEmitter.emit('onEnd', traces);
+	// eventEmitter.emit('onEnd', traces);
+	fn(traces);
 }
 
 function clearEmptyTraces(traces) {

@@ -16,8 +16,8 @@ function results(traces) {
 		}
 	}
 
-	finalize(traces);//but skip load and memory traces
-	finalizeMemory(traces);
+	finalize(traces);//but skip 'load' and 'memory' traces
+	finalizeMemory(traces);//memory traces
 }
 
 
@@ -32,7 +32,7 @@ function proc(frames) {//frames - frames in one trace
 		total: []
 	};
 	
-	//gathering all frames per trace in result object
+	// gathering all frames per trace in result object
 	for(var i = 0; i  < frames.length; i++) {
 		var frame = frames[i];
 		result.event.push(frame.event) ;
@@ -52,21 +52,25 @@ function proc(frames) {//frames - frames in one trace
 
 
 function cut(result) {
-	result.event = reject(result.event);
-	result.gc = reject(result.gc);
-	result.recalc = reject(result.recalc);
-	result.layout = reject(result.layout);
-	result.update= reject(result.update);
-	result.paint = reject(result.paint);
-	result.total = reject(result.total);
+	result.event = prepare(result.event);
+	result.gc = prepare(result.gc);
+	result.recalc = prepare(result.recalc);
+	result.layout = prepare(result.layout);
+	result.update= prepare(result.update);
+	result.paint = prepare(result.paint);
+	result.total = prepare(result.total);
 }
 
-function reject(arr) {
-	arr.sort((a,b)=> {return a > b;});
-	var to_rej = config.REJECT_COUNT;
-	if(to_rej > 0)
-		return arr.slice(0, -to_rej);
-	return arr;
+function prepare(arr) {
+	arr.sort((a,b)=> a-b);
+	var count = config.COUNT;
+	if(config.METHOD === config.methods.save_best) {
+		return arr.slice(0, count);
+	} else if (config.METHOD === config.methods.reject_worst) {
+		return arr.slice(0, arr.length - count);
+	} else if (config.METHOD === config.methods.do_nothing) {
+		return arr;
+	}
 }
 
 function stat(result) {
@@ -90,47 +94,40 @@ function stat(result) {
 }
 
 
-//porównanie wyników z vanilla js
-//mozna porównywac tez zestawienia, np opeoracje add, operacje replace itd, oraz wszyskie razem
 function finalize(traces) {
-	//1.przejrzec wszystkie traces i sprawdzic czy w nazwie framework wystepuje slowo keyed - nadac flage keyed:true|false
-	//2.wyniki pogrupowac w dwie grupy - keyed i non-keyed
-	//3.w kazdej z tych grup pogrupowac testy na benchmarki; w kazdej grupie benchmarkow znalesc test dla vanilla-js - do niego bedziemy porownywac; test umiescic na pozycji 0 w tablicy
-	//4.kazdy test odniesc do czasow vanillajs (tj event, recalc, total) tj  framework_time / vanillajs_time i np czasy 1.5 / 1 -> wychodzi 1.5 czyli framework w danej kategorii ma czas o 50% gorszy
-	//5.w results maja byc 2 czasy - np event oraz event2 (ten odnoszacy sie do vanillajs), moze tez byc odchylenie standardowe, czyi np : event, event_factor, event_stddev; kolorami mozna potem oznaczyc
-	//w zaleznosci od przedzialu w jakim wynik sie znajduje - chodzi o factor, tj np event_factor 1 do 1.2 zielony, 1.2 - 1.4 ziel-zółty itd
-
-	//7.zrobic tez osatteczny wynik czyli pogrupowac wyniki po frameworku, dodac wszystkie factory i policzyc srednia (np tylko total_factor albo mozna policzyc taka srednia dla kazdego factora osobno 
-	//oraz jedną calosciową)
-	//8.jako results dorzucic obiekty podsumowujace kazdy framework; aplikacja prezentująca wtedy ma tylko prezentowac nie musi nic juz doliczac
+	//1.wyniki pogrupowac w dwie grupy - keyed i non-keyed
+	//2.w kazdej z tych grup pogrupowac testy na benchmarki; w kazdej grupie benchmarkow znalesc test dla vanilla-js - do niego bedziemy porownywac; test umiescic na pozycji 0 w tablicy
+	//3.kazdy test odniesc do czasow vanillajs (event, recalc, total) tj  framework_time / vanillajs_time i np czasy 1.5 / 1 -> wychodzi 1.5 czyli framework w danej kategorii ma czas o 50% gorszy
+	//4.pogrupowac wyniki po frameworku
+	//5.podsumować każdą kategorię
 
 	var keyedTraces = [], nonkTraces = [];
 
+	//1 
 	for(var i = 0; i < traces.length; i++) {
 		var trace = traces[i];
-		//1 && 2
-		if(trace.framework.indexOf('keyed') > -1) {
-			trace.keyed = true;
+		if(trace.memory || trace.load) //omitting memory and load traces
+			continue;
+		if(trace.keyed) {
 			keyedTraces.push(trace);
 		} else {
-			trace.keyed = false;
 			nonkTraces.push(trace);
 		}
 	}
 
-	//3.
+	//2. 
 	keyedTraces = groupByBenchmarks(keyedTraces);
 	nonkTraces = groupByBenchmarks(nonkTraces);
 
-	//4 && 5
+	//3
 	normalizeBenchmarks(keyedTraces);
 	normalizeBenchmarks(nonkTraces);
 
-	//7 && 8
-	frameworkSummaryAll(traces);
+	//4
+	summary(traces, filter_Overall, null, summaryAlg1);
 
-	//sumup categories
-	frameworkSummaryCat(traces, names.benchmarks.categories.all);
+	//5
+	summary(traces, filter_Overall, names.benchmarks.categories.all, summaryAlg1);
 }
 
 function groupByBenchmarks(tracesArr) {
@@ -142,10 +139,12 @@ function groupByBenchmarks(tracesArr) {
 		if(obj[b] === undefined) {
 			obj[b] = [trace];
 		} else {
-			if(b.indexOf('vanilla') > -1)
+			if(trace.framework.indexOf('vanilla') > -1) {
 				obj[b].unshift(trace);
-			else 	
+			}
+			else {
 				obj[b].push(trace);
+			}
 		}
 	}
 	return obj;
@@ -155,8 +154,6 @@ function normalizeBenchmarks(benchsObj) {
 	for(var key in benchsObj) {
 		var benchs = benchsObj[key];
 		var trace = benchs[0];
-		if(trace.memory || trace.load) //omitting memory and load traces
-			continue;
 		var b0 = benchs[0].results;//vanillajs benchmark (keyed or nonkeyed)
 		for(var i = 1; i < benchs.length; i++) {
 			normalize(benchs[i].results, b0);
@@ -184,202 +181,131 @@ function normalize(b1, b0) {//b0 - vanillajs benchmark, b1 - some framework benc
 	b1.total_factor = b1.total / b0.total;
 }
 
-//summary for all benchmarks results per framework
-function frameworkSummaryAll(traces) {
-	var frms = {};
-	for(var i = 0; i < traces.length; i++) {
-		var trace = traces[i];
 
-		if(trace.memory || trace.load) //omitting memory and load traces
-			continue;
+function summary(traces, filterFn, categories, summaryAlgorithm) { 
 
-		var frm = trace.framework;
-		if(frms[frm] === undefined) {
-			frms[frm] = [trace.results];
-			frms[frm].sort_index = trace.framework_index;
-		} else {
-			frms[frm].push(trace.results);
-		}
-	}
-
-	for(var frm in frms) {
-
-		//framework summary object is added to traces
-		var frmRes = {
-			framework: frm,
-			framework_index: frms[frm].sort_index,
-			results: {
-				event: 0,
-				gc:0,
-				recalc: 0,
-				layout: 0,
-				update: 0,
-				paint: 0,
-				total: 0,
-			},
-			summary: true,//summary object
-			category: "all",
-			category_index: -100,
-		};
-		traces.push(frmRes);//summary object added to traces
-
-		frmRes = frmRes.results;
-		frm = frms[frm];
-		var e_ctr = gc_ctr = r_ctr = l_ctr = u_ctr = p_ctr = 0;
-		for(var i = 0; i < frm.length; i++) {
-			//sum only if exists
-			if(frm[i].event_factor) {
-				frmRes.event += frm[i].event_factor;
-				e_ctr++;
-			}
-			if(frm[i].gc_factor){
-				frmRes.gc += frm[i].gc_factor;
-				gc_ctr++;
-			}
-			if(frm[i].recalc_factor){
-				frmRes.recalc += frm[i].recalc_factor;
-				r_ctr++;
-			}
-			if(frm[i].layout_factor){
-				frmRes.layout += frm[i].layout_factor;
-				l_ctr++;
-			}
-			if(frm[i].update_factor){
-				frmRes.update += frm[i].update_factor;
-				u_ctr++;
-			}
-			if(frm[i].paint_factor){
-				frmRes.paint += frm[i].paint_factor;
-				p_ctr++;
-			}
-
-			frmRes.total += frm[i].total_factor;
-		}
-
-		if(e_ctr)
-			frmRes.event = frmRes.event / e_ctr;
-		if(gc_ctr)
-			frmRes.gc = frmRes.gc / gc_ctr;
-		if(r_ctr)
-			frmRes.recalc = frmRes.recalc / r_ctr;
-		if(l_ctr)
-			frmRes.layout = frmRes.layout / l_ctr;
-		if(u_ctr)
-			frmRes.update = frmRes.update / u_ctr;
-		if(p_ctr)
-			frmRes.paint = frmRes.paint / p_ctr;
-
-		frmRes.total = frmRes.total / frm.length;
-	}
-}
-
-//summaries for every benchmark category per framework
-function frameworkSummaryCat(traces, categories) {
-
-	function getCategory(trace) {
+	var getCategory = (categories) ?  function (trace) {
 		for(var i = 0; i < categories.length; i++) {
 			if(trace.benchmark.indexOf(categories[i].name) > -1) {
 				return categories[i];
 			}
 		}
 		return null;
-	}
+	} : function(){ return {name: 'overall', sort_index: -1};};
 
-	var frms = {};
+	var groups = {};
 	for(var i = 0; i < traces.length; i++) {
 		var trace = traces[i];
 
-		if(trace.summary)//omiting summaries - they are existing becaue we have called frameworkSummaryAll()
+		if(trace.omit_summary) {
+			console.log('omiting: ',trace.benchmark, trace.framework);
+			continue;
+		}
+
+
+		if( filterFn(trace) )//omiting some traces
 			continue;
 
-		if(trace.memory || trace.load) //omitting memory and load traces
-			continue;
-
-		var frm = trace.framework + getCategory(trace).name;
-		if(frms[frm] === undefined) {
-			frms[frm] = [trace.results];
-			frms[frm].framework = trace.framework;
-			frms[frm].sort_index = trace.framework_index;
-			frms[frm].cat = getCategory(trace);
+		var gname = trace.framework + getCategory(trace).name;
+		if(groups[gname] === undefined) {
+			groups[gname] = [trace.results];
+			groups[gname].framework = trace.framework;
+			groups[gname].sort_index = trace.framework_index;
+			groups[gname].cat = getCategory(trace);
+			groups[gname].keyed = trace.keyed;
 		} else {
-			frms[frm].push(trace.results);
+			groups[gname].push(trace.results);
 		}
 	}
 
-	for(var frm in frms) {
-
-		//summary object for category per framework
-		var frmRes = {
-			framework: frms[frm].framework,
-			framework_index: frms[frm].sort_index,
-			results: {
-				event: 0,
-				gc: 0,
-				recalc: 0,
-				layout: 0,
-				update: 0,
-				paint: 0,
-				total: 0,
-			},
-			summary: true,//summary object
-			category: frms[frm].cat.name,
-			category_index: frms[frm].cat.sort_index,
-		};
-		traces.push(frmRes);//summary object added to traces
-
-		frmRes = frmRes.results;
-		frm = frms[frm];
-		var e_ctr = gc_ctr = r_ctr = l_ctr = u_ctr = p_ctr = 0;
-		for(var i = 0; i < frm.length; i++) {
-			//sum only if exists
-			if(frm[i].event_factor) {
-				frmRes.event += frm[i].event_factor;
-				e_ctr++;
-			}
-			if(frm[i].gc_factor){
-				frmRes.gc += frm[i].gc_factor;
-				gc_ctr++;
-			}
-			if(frm[i].recalc_factor){
-				frmRes.recalc += frm[i].recalc_factor;
-				r_ctr++;
-			}
-			if(frm[i].layout_factor){
-				frmRes.layout += frm[i].layout_factor;
-				l_ctr++;
-			}
-			if(frm[i].update_factor){
-				frmRes.update += frm[i].update_factor;
-				u_ctr++;
-			}
-			if(frm[i].paint_factor){
-				frmRes.paint += frm[i].paint_factor;
-				p_ctr++;
-			}
-
-			frmRes.total += frm[i].total_factor;
-		}
-
-		if(e_ctr)
-			frmRes.event = frmRes.event / e_ctr;
-		if(gc_ctr)
-			frmRes.gc = frmRes.gc / gc_ctr;
-		if(r_ctr)
-			frmRes.recalc = frmRes.recalc / r_ctr;
-		if(l_ctr)
-			frmRes.layout = frmRes.layout / l_ctr;
-		if(u_ctr)
-			frmRes.update = frmRes.update / u_ctr;
-		if(p_ctr)
-			frmRes.paint = frmRes.paint / p_ctr;
-
-		frmRes.total = frmRes.total / frm.length;
+	for(var gname in groups) {
+		summaryAlgorithm(groups, gname, traces);
 	}
 }
 
+function filter_Overall(trace) {
+	if(trace.memory || trace.load || trace.summary)
+		return true;
+	return false;
+}
+
+
+function createResultObj(groups, gname) {
+	return {
+		framework: groups[gname].framework,
+		framework_index: groups[gname].sort_index,
+		keyed: groups[gname].keyed,
+		results: {
+			event: 0,
+			gc:0,
+			recalc: 0,
+			layout: 0,
+			update: 0,
+			paint: 0,
+			total: 0,
+		},
+		summary: true,//summary object
+		category: groups[gname].cat.name,
+		category_index: groups[gname].cat.sort_index,
+	};
+}
+
+function summaryAlg1(groups, gname, traces) {
+	//framework summary object is added to traces
+	var result = createResultObj(groups, gname);
+	traces.push(result);//summary object added to traces
+
+	result = result.results;
+	var group = groups[gname];
+	var e_ctr = gc_ctr = r_ctr = l_ctr = u_ctr = p_ctr = 0;
+	for(var i = 0; i < group.length; i++) {
+		//sum only if exists
+		if(group[i].event_factor) {
+			result.event += group[i].event_factor;
+			e_ctr++;
+		}
+		if(group[i].gc_factor){
+			result.gc += group[i].gc_factor;
+			gc_ctr++;
+		}
+		if(group[i].recalc_factor){
+			result.recalc += group[i].recalc_factor;
+			r_ctr++;
+		}
+		if(group[i].layout_factor){
+			result.layout += group[i].layout_factor;
+			l_ctr++;
+		}
+		if(group[i].update_factor){
+			result.update += group[i].update_factor;
+			u_ctr++;
+		}
+		if(group[i].paint_factor){
+			result.paint += group[i].paint_factor;
+			p_ctr++;
+		}
+
+		result.total += group[i].total_factor;
+	}
+
+	if(e_ctr)
+		result.event = result.event / e_ctr;
+	if(gc_ctr)
+		result.gc = result.gc / gc_ctr;
+	if(r_ctr)
+		result.recalc = result.recalc / r_ctr;
+	if(l_ctr)
+		result.layout = result.layout / l_ctr;
+	if(u_ctr)
+		result.update = result.update / u_ctr;
+	if(p_ctr)
+		result.paint = result.paint / p_ctr;
+
+	result.total = result.total / group.length;
+}
 
 //-----------------------
-//memory results working...
+//memory results 
 
 function procMemory(frames) {//frames - frames in one trace
 	var result = {
@@ -402,8 +328,8 @@ function procMemory(frames) {//frames - frames in one trace
 
 
 function cut_m(result) {
-	result.memory_before = reject(result.memory_before);
-	result.memory_after = reject(result.memory_after);
+	result.memory_before = prepare(result.memory_before);
+	result.memory_after = prepare(result.memory_after);
 }
 
 function stat_m(result) {
@@ -425,11 +351,9 @@ function finalizeMemory(traces) {
 		if(!trace.memory) //only memory traces
 			continue;
 
-		if(trace.framework.indexOf('keyed') > -1) {
-			trace.keyed = true;
+		if(trace.keyed) {
 			keyedTraces.push(trace);
 		} else {
-			trace.keyed = false;
 			nonkTraces.push(trace);
 		}
 	}
@@ -440,11 +364,8 @@ function finalizeMemory(traces) {
 	normalizeMemoryBenchmarks(keyedTraces);
 	normalizeMemoryBenchmarks(nonkTraces);
 
-	//7 && 8
-	frameworkSummaryAll(traces);
-
-	//sumup categories
-	frameworkSummaryCat(traces, names.benchmarks.categories.all);
+	var mem_cat = names.benchmarks.categories.all[12];
+	summary(traces, filter_Mem, [mem_cat] , summaryAlg2);
 }
 
 
@@ -452,120 +373,69 @@ function normalizeMemoryBenchmarks(benchsObj) {
 	for(var key in benchsObj) {
 		var benchs = benchsObj[key];
 		var trace = benchs[0];
-		if(trace.memory || trace.load) //omitting memory and load traces
-			continue;
 		var b0 = benchs[0].results;//vanillajs benchmark (keyed or nonkeyed)
 		for(var i = 1; i < benchs.length; i++) {
-			normalize(benchs[i].results, b0);
+			normalizeMem(benchs[i].results, b0);
 		}
-		normalize(b0, b0);
+		normalizeMem(b0, b0);
 	}
 }
 
-function normalize(b1, b0) {//b0 - vanillajs benchmark, b1 - some framework benchmark; b1 and b0 are the same test cases (for example both are 'add_1k')
-	b1.event_factor = b1.gc_factor = b1.recalc_factor = b1.layout_factor = b1.update_factor = 0;
+function normalizeMem(b1, b0) {//b0 - vanillajs benchmark, b1 - some framework benchmark; b1 and b0 are the same test cases (for example both are 'add_1k')
+	b1.memb_factor = b1.mema_factor = 0;
 
-	if(b0.event)
-		b1.event_factor = b1.event / b0.event;
-	if(b0.gc)
-		b1.gc_factor = b1.gc / b0.gc;
-	if(b0.recalc)
-		b1.recalc_factor = b1.recalc / b0.recalc;
-	if(b0.layout)
-		b1.layout_factor = b1.layout / b0.layout;
-	if(b0.update)
-		b1.update_factor = b1.update / b0.update;
-	if(b0.paint)
-		b1.paint_factor = b1.paint / b0.paint;
-
-	b1.total_factor = b1.total / b0.total;
+	if(b0.memory_before)
+		b1.memb_factor = b1.memory_before / b0.memory_before;
+	if(b0.memory_after)
+		b1.mema_factor = b1.memory_after / b0.memory_after;
 }
 
-//summary for all benchmarks results per framework
-function frameworkSummaryAll(traces) {
-	var frms = {};
-	for(var i = 0; i < traces.length; i++) {
-		var trace = traces[i];
+function filter_Mem(trace) {
+	if(trace.memory)
+		return false;
+	return true;
+}
 
-		if(trace.memory || trace.load) //omitting memory and load traces
-			continue;
 
-		var frm = trace.framework;
-		if(frms[frm] === undefined) {
-			frms[frm] = [trace.results];
-			frms[frm].sort_index = trace.framework_index;
-		} else {
-			frms[frm].push(trace.results);
+function createResultObj_Mem(groups, gname) {
+	return {
+		framework: groups[gname].framework,
+		framework_index: groups[gname].sort_index,
+		keyed: groups[gname].keyed,
+		results: {
+			before: 0,
+			after: 0,
+		},
+		summary: true,//summary object
+		category: groups[gname].cat.name,
+		category_index: groups[gname].cat.sort_index,
+	};
+}
+
+function summaryAlg2(groups, gname, traces) {
+	//framework summary object is added to traces
+	var result = createResultObj_Mem(groups, gname);
+	traces.push(result);//summary object added to traces
+
+	result = result.results;
+	var group = groups[gname];
+	var a_ctr = b_ctr = 0;
+	for(var i = 0; i < group.length; i++) {
+		//sum only if exists
+		if(group[i].mema_factor) {
+			result.after += group[i].mema_factor;
+			a_ctr++;
+		}
+		if(group[i].memb_factor){
+			result.before += group[i].memb_factor;
+			b_ctr++;
 		}
 	}
 
-	for(var frm in frms) {
-
-		//framework summary object is added to traces
-		var frmRes = {
-			framework: frm,
-			framework_index: frms[frm].sort_index,
-			results: {
-				event: 0,
-				gc:0,
-				recalc: 0,
-				layout: 0,
-				update: 0,
-				paint: 0,
-				total: 0,
-			},
-			summary: true,//summary object
-			category: "all",
-			category_index: -100,
-		};
-		traces.push(frmRes);//summary object added to traces
-
-		frmRes = frmRes.results;
-		frm = frms[frm];
-		var e_ctr = gc_ctr = r_ctr = l_ctr = u_ctr = p_ctr = 0;
-		for(var i = 0; i < frm.length; i++) {
-			//sum only if exists
-			if(frm[i].event_factor) {
-				frmRes.event += frm[i].event_factor;
-				e_ctr++;
-			}
-			if(frm[i].gc_factor){
-				frmRes.gc += frm[i].gc_factor;
-				gc_ctr++;
-			}
-			if(frm[i].recalc_factor){
-				frmRes.recalc += frm[i].recalc_factor;
-				r_ctr++;
-			}
-			if(frm[i].layout_factor){
-				frmRes.layout += frm[i].layout_factor;
-				l_ctr++;
-			}
-			if(frm[i].update_factor){
-				frmRes.update += frm[i].update_factor;
-				u_ctr++;
-			}
-			if(frm[i].paint_factor){
-				frmRes.paint += frm[i].paint_factor;
-				p_ctr++;
-			}
-
-			frmRes.total += frm[i].total_factor;
-		}
-
-		if(e_ctr)
-			frmRes.event = frmRes.event / e_ctr;
-		if(gc_ctr)
-			frmRes.gc = frmRes.gc / gc_ctr;
-		if(r_ctr)
-			frmRes.recalc = frmRes.recalc / r_ctr;
-		if(l_ctr)
-			frmRes.layout = frmRes.layout / l_ctr;
-		if(u_ctr)
-			frmRes.update = frmRes.update / u_ctr;
-		if(p_ctr)
-			frmRes.paint = frmRes.paint / p_ctr;
-
-		frmRes.total = frmRes.total / frm.length;
-	}
+	if(a_ctr)
+		result.after = result.after / a_ctr;
+	if(b_ctr)
+		result.before = result.before / b_ctr;
 }
+
+

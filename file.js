@@ -17,11 +17,12 @@ function saveResults(traces) {//recording all traces to resultsCache array
 				summary: true,
 				category: trace.category,
 				category_index: trace.category_index,
+				keyed: trace.keyed,
 			});
 		} else {
 			var type = (trace.memory) ? "MEM" : "CPU";
-			if(trace.load)
-				type = 'LOAD';
+			// if(trace.load)
+			// 	type = 'LOAD';
 
 			resultsCache.push({
 				framework: trace.framework, 
@@ -29,6 +30,7 @@ function saveResults(traces) {//recording all traces to resultsCache array
 				benchmark: trace.benchmark,
 				benchmark_index: trace.benchmark_index,
 				results: trace.results,
+				bench_descr: trace.bench_descr,
 				type: type,
 				keyed: trace.keyed,
 			});
@@ -89,4 +91,20 @@ function ensureDirname(fileName) {
 	if(!fs.existsSync(dirname)) {
 		fs.mkdirSync(dirname);
 	} 
+}
+
+exports.saveParseErrors = saveParseErrors;
+function saveParseErrors(cache) {
+	var fn = "parse-err.json";
+	if(cache.length > 0) {
+		fs.writeFile(fn, JSON.stringify(cache), { encoding: "utf8" }, (err) => {
+			if(err) {
+				return console.error("error while saving:" + fn);  
+			}
+			console.log("file: ", fn, ' saved'); 
+		});
+	}
+
+		
+	
 }
